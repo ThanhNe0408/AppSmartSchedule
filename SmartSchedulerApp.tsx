@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+"use client"
+
+import React, { useState } from "react"
 import {
   SafeAreaView,
   View,
@@ -7,120 +9,139 @@ import {
   ActivityIndicator,
   Text,
   TouchableOpacity,
-  Image
-} from "react-native";
+  Image,
+} from "react-native"
+import TabBar from "./components/TabBar"
+import ScheduleTab from "./components/tabs/ScheduleTab"
+import SuggestionsTab from "./components/tabs/SuggestionsTab"
+import ChallengesTab from "./components/tabs/ChallengesTab"
+import SettingsTab from "./components/tabs/SettingsTab"
+import AuthScreen from "./components/auth/AuthScreen"
+import { useAuth } from "./components/context/AuthContext"
+import { useTheme } from "./components/context/ThemeContext"
+import { COLORS } from "./styles/theme"
+import { GoogleSignin } from "@react-native-google-signin/google-signin"
 
-import Header from "./components/Header";
-import TabBar from "./components/TabBar";
-import ScheduleTab from "./components/tabs/ScheduleTab";
-import SuggestionsTab from "./components/tabs/SuggestionsTab";
-import AnalyticsTab from "./components/tabs/AnalyticsTab";
-import AuthScreen from "./components/auth/AuthScreen";
-import { useAuth } from "./components/context/AuthContext";
+GoogleSignin.configure({
+  webClientId: "611842417786-56vqqp9ubfpkc47jmh7qaqof3t4f2fj4.apps.googleusercontent.com",
+})
 
 export default function SmartSchedulerApp() {
-  const { user, isLoading, logout } = useAuth();
-  const [currentTab, setCurrentTab] = useState("schedule");
+  const { user, isLoading, logout } = useAuth()
+  const { isDarkMode, colors } = useTheme()
+  const [currentTab, setCurrentTab] = useState("schedule")
 
   const renderTabContent = () => {
     switch (currentTab) {
       case "schedule":
-        return <ScheduleTab />;
+        return <ScheduleTab />
       case "suggestions":
-        return <SuggestionsTab />;
-      case "analytics":
-        return <AnalyticsTab />;
+        return <SuggestionsTab />
+      case "challenges":
+        return <ChallengesTab />
+      case "settings":
+        return <SettingsTab />
       default:
-        return <ScheduleTab />;
+        return <ScheduleTab />
     }
-  };
+  }
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <SafeAreaView style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContent}>
-          <Image
-            source={require('./assets/logo.png')}
-            style={styles.loadingLogo}
-            resizeMode="contain"
-          />
-          <ActivityIndicator size="large" color="#6C63FF" />
-          <Text style={styles.loadingText}>Đang tải...</Text>
+          <Image source={require("./assets/logo.png")} style={styles.loadingLogo} resizeMode="contain" />
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.primary }]}>Đang tải...</Text>
         </View>
       </SafeAreaView>
-    );
+    )
   }
 
   if (!user) {
     return (
       <>
-        <StatusBar barStyle="light-content" backgroundColor="#6C63FF" />
-        <SafeAreaView style={styles.topSafeArea} />
-        <SafeAreaView style={styles.container}>
+        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={colors.primary} />
+        <SafeAreaView style={[styles.topSafeArea, { backgroundColor: colors.primary }]} />
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
           <AuthScreen />
         </SafeAreaView>
       </>
-    );
-  }
+    )
+  }  
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#6C63FF" />
-      <SafeAreaView style={styles.topSafeArea} />
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Image
-            source={require('./assets/logo.png')}
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
-          <Text style={styles.headerTitle}>Smart Scheduler</Text>
-        </View>
-        
-        <View style={styles.userInfoContainer}>
-          <View style={styles.userAvatar}>
-            <Text style={styles.userInitials}>
-              {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-            </Text>
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={colors.primary} />
+      <SafeAreaView style={[styles.topSafeArea, { backgroundColor: colors.primary }]} />
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.userInfoContainer, { backgroundColor: colors.primary }]}>
+          <View style={[styles.userAvatar, { backgroundColor: "rgba(255, 255, 255, 0.2)" }]}>
+            <Text style={styles.userInitials}>{user?.name ? user.name.charAt(0).toUpperCase() : "U"}</Text>
           </View>
           <View style={styles.userDetails}>
-            <Text style={styles.welcomeText}>Xin chào,</Text>
-            <Text style={styles.userName}>{user?.name || "bạn"}</Text>
+            <Text style={[styles.welcomeText, { color: "rgba(255, 255, 255, 0.8)" }]}>Xin chào,</Text>
+            <Text style={[styles.userName, { color: colors.white }]}>{user?.name || "bạn"}</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.logoutButton} 
-            onPress={logout}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
             <Text style={styles.logoutText}>Đăng xuất</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.content}>
+        <View
+          style={[
+            styles.content,
+            {
+              backgroundColor: colors.background,
+              shadowColor: isDarkMode ? colors.black : colors.elevation,
+            },
+          ]}
+        >
           {renderTabContent()}
         </View>
-        
+
         <TabBar currentTab={currentTab} setCurrentTab={setCurrentTab} />
       </SafeAreaView>
     </>
-  );
+  )
+}
+
+export type Event = {
+  id: string
+  title: string
+  info: string
+  date: Date
+  day: string
+  month: string
+  indicatorColor: string
+}
+
+export type RootStackParamList = {
+  AnalyticsTab: undefined
+  SuggestionsTab: { suggestionType: string }
+  EventDetail: { event: Event }
+}
+
+// Nếu đã có DrawerParamList, để nguyên nó nhé.
+export type DrawerParamList = {
+  Tasks: undefined
+  Calendar: undefined
+  Challenges: undefined
+  Suggestions: undefined
 }
 
 const styles = StyleSheet.create({
   topSafeArea: {
     flex: 0,
-    backgroundColor: "#6C63FF",
   },
   container: {
     flex: 1,
-    backgroundColor: "#F7F9FC",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#6C63FF",
   },
   headerLogo: {
     width: 32,
@@ -130,16 +151,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: COLORS.white,
   },
   content: {
     flex: 1,
     padding: 16,
-    backgroundColor: "#F7F9FC",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     marginTop: -24,
-    shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
@@ -147,7 +166,6 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#F7F9FC",
   },
   loadingContent: {
     flex: 1,
@@ -162,7 +180,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: "#6C63FF",
     fontWeight: "600",
   },
   userInfoContainer: {
@@ -170,19 +187,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#6C63FF",
     marginBottom: 24,
   },
   userAvatar: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
   userInitials: {
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 18,
     fontWeight: "700",
   },
@@ -192,12 +207,10 @@ const styles = StyleSheet.create({
   },
   welcomeText: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
   },
   userName: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#FFFFFF",
   },
   logoutButton: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
@@ -213,4 +226,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-});
+})

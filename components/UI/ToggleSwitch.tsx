@@ -1,19 +1,33 @@
 import React from "react";
 import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { useTheme } from "../context/ThemeContext";
+import { COLORS } from "../../styles/theme";
 
 type ToggleSwitchProps = {
   isActive: boolean;
   onToggle: () => void;
+  activeColor?: string;
 };
 
-const ToggleSwitch = ({ isActive, onToggle }: ToggleSwitchProps) => {
+const ToggleSwitch = ({ isActive, onToggle, activeColor = COLORS.primary }: ToggleSwitchProps) => {
+  const { isDarkMode, colors } = useTheme();
+
   return (
     <TouchableOpacity 
-      style={[styles.toggleButton, isActive && styles.toggleActive]}
+      style={[
+        styles.toggleButton, 
+        {
+          backgroundColor: isDarkMode ? colors.darkBorder : "#E0E0E0"
+        },
+        isActive && { backgroundColor: activeColor }
+      ]}
       onPress={onToggle}
     >
       <View style={[
         styles.toggleButtonInner, 
+        {
+          backgroundColor: isDarkMode ? colors.darkText : colors.white
+        },
         isActive && styles.toggleButtonActive
       ]} />
     </TouchableOpacity>
@@ -25,20 +39,15 @@ const styles = StyleSheet.create({
     width: 50,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#E0E0E0",
     padding: 2,
-  },
-  toggleActive: {
-    backgroundColor: "#7B66FF",
   },
   toggleButtonInner: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#fff",
   },
   toggleButtonActive: {
-    marginLeft: 'auto',
+    marginLeft: "auto",
   }
 });
 

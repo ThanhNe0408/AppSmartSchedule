@@ -1,145 +1,129 @@
-import React, { useState } from "react";
-import { ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
-import Card from "../UI/Card";
-import CustomButton from "../UI/CustomButton";
+"use client"
+
+import { useState } from "react"
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from "react-native"
+import TimeEstimation from "../ai/TimeEstimation"
+import VoiceReminders from "../reminders/VoiceReminders"
+import AIAssistant from "../ai/AIAssistant"
+import ImageScheduleRecognition from "../recognition/ImageScheduleRecognition"
+import { useTheme } from "../context/ThemeContext"
+import { COLORS } from "../../styles/theme"
 
 const SuggestionsTab = () => {
-  const [task, setTask] = useState('');
-  
+  const [activeFeature, setActiveFeature] = useState<string>("imageRecognition")
+  const { isDarkMode, colors } = useTheme()
+
+  const renderFeatureContent = () => {
+    switch (activeFeature) {
+      case "imageRecognition":
+        return <ImageScheduleRecognition />
+      case "timeEstimation":
+        return <TimeEstimation />
+      case "voiceReminders":
+        return <VoiceReminders />
+      case "aiAssistant":
+        return <AIAssistant />
+      default:
+        return <ImageScheduleRecognition />
+    }
+  }
+
   return (
-    <ScrollView>
-      <Card title="🧠 Gợi ý lịch trình thông minh">
-        <View style={styles.inputContainer}>
-          <TextInput 
-            placeholder="Nhập công việc cần hoàn thành..." 
-            style={styles.input}
-            value={task}
-            onChangeText={setTask}
-          />
-          <TouchableOpacity style={styles.searchButton}>
-            <Text style={styles.searchIcon}>🔍</Text>
+    <ScrollView style={{ backgroundColor: colors.background }}>
+      <View style={[styles.featureSelector, { backgroundColor: isDarkMode ? colors.darkCard : colors.card }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <TouchableOpacity
+            style={[
+              styles.featureButton,
+              activeFeature === "imageRecognition" && [
+                styles.activeFeature,
+                { backgroundColor: isDarkMode ? colors.dark.background : colors.white }
+              ]
+            ]}
+            onPress={() => setActiveFeature("imageRecognition")}
+          >
+            <Text style={styles.featureIcon}>📷</Text>
+            <Text style={[styles.featureText, { color: isDarkMode ? colors.darkText : colors.text }]}>Nhận diện lịch</Text>
           </TouchableOpacity>
-        </View>
-        
-        <View style={styles.suggestionOptions}>
-          <TouchableOpacity style={styles.suggestionTag}>
-            <Text style={styles.suggestionTagText}>Bài tập về nhà</Text>
+
+          <TouchableOpacity
+            style={[
+              styles.featureButton,
+              activeFeature === "timeEstimation" && [
+                styles.activeFeature,
+                { backgroundColor: isDarkMode ? colors.dark.background : colors.white }
+              ]
+            ]}
+            onPress={() => setActiveFeature("timeEstimation")}
+          >
+            <Text style={styles.featureIcon}>⏱️</Text>
+            <Text style={[styles.featureText, { color: isDarkMode ? colors.darkText : colors.text }]}>Dự đoán thời gian</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.suggestionTag}>
-            <Text style={styles.suggestionTagText}>Bài thuyết trình</Text>
+
+          <TouchableOpacity
+            style={[
+              styles.featureButton,
+              activeFeature === "voiceReminders" && [
+                styles.activeFeature,
+                { backgroundColor: isDarkMode ? colors.dark.background : colors.white }
+              ]
+            ]}
+            onPress={() => setActiveFeature("voiceReminders")}
+          >
+            <Text style={styles.featureIcon}>🔔</Text>
+            <Text style={[styles.featureText, { color: isDarkMode ? colors.darkText : colors.text }]}>Nhắc nhở</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.suggestionTag}>
-            <Text style={styles.suggestionTagText}>Đọc sách</Text>
+
+          <TouchableOpacity
+            style={[
+              styles.featureButton,
+              activeFeature === "aiAssistant" && [
+                styles.activeFeature,
+                { backgroundColor: isDarkMode ? colors.dark.background : colors.white }
+              ]
+            ]}
+            onPress={() => setActiveFeature("aiAssistant")}
+          >
+            <Text style={styles.featureIcon}>🤖</Text>
+            <Text style={[styles.featureText, { color: isDarkMode ? colors.darkText : colors.text }]}>Trợ lý AI</Text>
           </TouchableOpacity>
-        </View>
-        
-        <CustomButton
-          title="Gợi ý thời gian tối ưu"
-          onPress={() => {}}
-        />
-      </Card>
-      
-      <Card title="⏱️ Dự đoán thời gian hoàn thành">
-        <View style={styles.predictionResult}>
-          <View style={styles.predictionCircle}>
-            <Text style={styles.predictionValue}>45</Text>
-            <Text style={styles.predictionUnit}>phút</Text>
-          </View>
-          <View style={styles.predictionDetails}>
-            <Text style={styles.predictionTitle}>Bài tập Toán cao cấp</Text>
-            <Text style={styles.predictionDescription}>
-              Dựa trên các bài tập tương tự bạn đã hoàn thành trước đây
-            </Text>
-          </View>
-        </View>
-        <CustomButton
-          title="Phân tích chi tiết"
-         
-          
-          onPress={() => {}}
-        />
-      </Card>
+        </ScrollView>
+      </View>
+
+      {renderFeatureContent()}
     </ScrollView>
-  );
-};
+  )
+}
 
 const styles = StyleSheet.create({
-  inputContainer: {
-    flexDirection: "row",
+  featureSelector: {
     marginBottom: 16,
-    backgroundColor: "#F5F7FA",
     borderRadius: 12,
-    padding: 4,
+    padding: 8,
   },
-  input: {
-    flex: 1,
-    padding: 12,
-    fontSize: 16,
-    color: "#333",
-  },
-  searchButton: {
-    padding: 12,
-    justifyContent: "center",
+  featureButton: {
     alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginRight: 12,
   },
-  searchIcon: {
-    fontSize: 18,
+  activeFeature: {
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  suggestionOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 16,
-  },
-  suggestionTag: {
-    backgroundColor: "#F0F2F5",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  suggestionTagText: {
-    fontSize: 13,
-    color: "#333",
-  },
-  predictionResult: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 16,
-  },
-  predictionCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#F0F4FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  predictionValue: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#7B66FF",
-  },
-  predictionUnit: {
-    fontSize: 12,
-    color: "#7B66FF",
-  },
-  predictionDetails: {
-    flex: 1,
-  },
-  predictionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
+  featureIcon: {
+    fontSize: 20,
     marginBottom: 4,
   },
-  predictionDescription: {
-    fontSize: 13,
-    color: "#666",
-    lineHeight: 18,
-  }
-});
+  featureText: {
+    fontSize: 12,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+})
 
-export default SuggestionsTab;
-
+export default SuggestionsTab

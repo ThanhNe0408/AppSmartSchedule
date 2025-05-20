@@ -1,48 +1,66 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
+import { 
+  TouchableOpacity, 
+  Text, 
+  StyleSheet, 
+  ActivityIndicator, 
+  StyleProp, 
+  ViewStyle,
+  TextStyle 
+} from 'react-native';
+import { useTheme } from '../context/ThemeContext';
+import { COLORS } from '../../styles/theme';
 
-type CustomButtonProps = {
+interface CustomButtonProps {
   title: string;
   onPress: () => void;
   isLoading?: boolean;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
-  variant?: 'primary' | 'secondary' | 'outline';
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
   disabled?: boolean;
-};
+  type?: 'primary' | 'secondary' | 'outline';
+  color?: string;
+}
 
-const CustomButton = ({
+const CustomButton: React.FC<CustomButtonProps> = ({
   title,
   onPress,
   isLoading = false,
   style,
   textStyle,
-  variant = 'primary',
   disabled = false,
-}: CustomButtonProps) => {
+  type = 'primary',
+  color = COLORS.primary
+}) => {
+  const { isDarkMode, colors } = useTheme();
+
   const getButtonStyle = () => {
-    switch (variant) {
+    switch (type) {
       case 'primary':
-        return styles.primaryButton;
+        return { backgroundColor: color };
       case 'secondary':
-        return styles.secondaryButton;
+        return { backgroundColor: isDarkMode ? colors.darkCard : colors.card };
       case 'outline':
-        return styles.outlineButton;
+        return {
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          borderColor: color
+        };
       default:
-        return styles.primaryButton;
+        return { backgroundColor: color };
     }
   };
 
   const getTextStyle = () => {
-    switch (variant) {
+    switch (type) {
       case 'primary':
-        return styles.primaryText;
+        return { color: colors.white };
       case 'secondary':
-        return styles.secondaryText;
+        return { color: isDarkMode ? colors.darkText : colors.text };
       case 'outline':
-        return styles.outlineText;
+        return { color };
       default:
-        return styles.primaryText;
+        return { color: colors.white };
     }
   };
 
@@ -51,16 +69,20 @@ const CustomButton = ({
       style={[
         styles.button,
         getButtonStyle(),
-        disabled || isLoading ? styles.disabled : {},
-        style,
+        disabled || isLoading ? styles.disabledButton : {},
+        style
       ]}
       onPress={onPress}
       disabled={disabled || isLoading}
+      activeOpacity={0.7}
     >
       {isLoading ? (
-        <ActivityIndicator color={variant === 'outline' ? '#7B66FF' : '#FFFFFF'} />
+        <ActivityIndicator 
+          color={type === 'outline' ? color : colors.white} 
+          size="small" 
+        />
       ) : (
-        <Text style={[getTextStyle(), textStyle]}>{title}</Text>
+        <Text style={[styles.text, getTextStyle(), textStyle]}>{title}</Text>
       )}
     </TouchableOpacity>
   );
@@ -68,40 +90,23 @@ const CustomButton = ({
 
 const styles = StyleSheet.create({
   button: {
-    width: '100%',
     height: 50,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  primaryButton: {
-    backgroundColor: '#7B66FF',
-  },
-  secondaryButton: {
-    backgroundColor: '#6C757D',
-  },
-  outlineButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#7B66FF',
-  },
-  disabled: {
-    opacity: 0.7,
-  },
-  primaryText: {
-    color: '#FFF',
+  text: {
     fontSize: 16,
     fontWeight: '600',
   },
-  secondaryText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  outlineText: {
-    color: '#7B66FF',
-    fontSize: 16,
-    fontWeight: '600',
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 

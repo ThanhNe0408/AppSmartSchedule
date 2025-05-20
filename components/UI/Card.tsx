@@ -1,5 +1,7 @@
 import React, { ReactNode } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { useTheme } from "../context/ThemeContext";
+import { COLORS } from "../../styles/theme";
 
 type CardProps = {
   title: string;
@@ -9,13 +11,31 @@ type CardProps = {
 };
 
 const Card = ({ title, showSeeAll = false, onSeeAllPress, children }: CardProps) => {
+  const { isDarkMode, colors } = useTheme();
+
   return (
-    <View style={styles.card}>
+    <View style={[
+      styles.card,
+      {
+        backgroundColor: isDarkMode ? colors.darkCard : colors.card,
+        shadowColor: isDarkMode ? colors.black : colors.elevation
+      }
+    ]}>
       <View style={styles.cardHeader}>
-        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text style={[
+          styles.sectionTitle,
+          { color: isDarkMode ? colors.darkText : colors.text }
+        ]}>
+          {title}
+        </Text>
         {showSeeAll && (
           <TouchableOpacity onPress={onSeeAllPress}>
-            <Text style={styles.seeAllText}>Xem tất cả</Text>
+            <Text style={[
+              styles.seeAllText,
+              { color: colors.primary }
+            ]}>
+              Xem tất cả
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -26,11 +46,9 @@ const Card = ({ title, showSeeAll = false, onSeeAllPress, children }: CardProps)
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#ffffff",
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -45,11 +63,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
   },
   seeAllText: {
     fontSize: 14,
-    color: "#7B66FF",
     fontWeight: "500",
   }
 });

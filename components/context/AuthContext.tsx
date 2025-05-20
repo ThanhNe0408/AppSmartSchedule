@@ -1,164 +1,287 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+"use client"
 
-type User = {
-  id: string;
-  email: string;
-  name: string;
-};
+// components/context/AuthContext.tsx
+import { createContext, useState, useContext, useEffect, type ReactNode } from "react"
+import AsyncStorage from "@react-native-async-storage/async-storage"
+import auth from "@react-native-firebase/auth"
+import { GoogleSignin } from "@react-native-google-signin/google-signin"
+
+// Cấu hình Google Sign-In
+GoogleSignin.configure({
+  webClientId: "269322084365-7mdfe4ed76ng3v5mns6n0phqluic5dlq.apps.googleusercontent.com", // Updated to your new client ID
+  offlineAccess: true,
+})
+
+export type User = {
+  id: string
+  email: string
+  name: string
+  photoURL?: string
+}
 
 type AuthContextType = {
-  user: User | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signupWithEmail: (name: string, email: string, password: string) => Promise<void>;
-  signInWithGmail: () => Promise<void>;
-  logout: () => Promise<void>;
-};
+  user: User | null
+  isLoading: boolean
+  login: (email: string, password: string) => Promise<User>
+  signupWithEmail: (name: string, email: string, password: string) => Promise<User>
+  signupWithPhone: (name: string, phone: string, password: string) => Promise<User>
+  signInWithGmail: () => Promise<User>
+  resetPassword: (phone: string) => Promise<string>
+  verifyResetCode: (phone: string, verificationId: string, newPassword: string) => Promise<void>
+  logout: () => Promise<void>
+}
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
+  const context = useContext(AuthContext)
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider")
   }
-  return context;
-};
+  return context
+}
 
 type AuthProviderProps = {
-  children: ReactNode;
-};
+  children: ReactNode
+}
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
 
-  // Check if user is already logged in when app loads
+  const formatUser = (firebaseUser: any): User => ({
+    id: firebaseUser.uid,
+    email: firebaseUser.email || "",
+    name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+    photoURL: firebaseUser.photoURL || undefined,
+  })
+
   useEffect(() => {
-    const checkLoginStatus = async () => {
-      try {
-        const userData = await AsyncStorage.getItem('user');
-        if (userData) {
-          setUser(JSON.parse(userData));
-        }
-      } catch (error) {
-        console.error('Failed to get user data from storage:', error);
-      } finally {
-        setIsLoading(false);
+    const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        const formattedUser = formatUser(firebaseUser)
+        setUser(formattedUser)
+        await AsyncStorage.setItem("user", JSON.stringify(formattedUser))
+      } else {
+        setUser(null)
+        await AsyncStorage.removeItem("user")
       }
-    };
+      setIsLoading(false)
+    })
 
-    checkLoginStatus();
-  }, []);
+    return () => unsubscribe()
+  }, [])
 
-  // Login with email and password
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
+  const login = async (email: string, password: string): Promise<User> => {
+    setIsLoading(true)
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // In a real app, you'd make an API call here
-      // const response = await api.login(email, password);
-      
-      // Mock successful login
-      const userData: User = {
-        id: '123456',
-        email,
-        name: email.split('@')[0], // Just using part of email as name for demo
-      };
-      
-      // Save user data to storage
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-    } catch (error) {
-      console.error('Login error:', error);
-      throw new Error('Invalid email or password');
+      const { user: firebaseUser } = await auth().signInWithEmailAndPassword(email, password)
+      const formattedUser = formatUser(firebaseUser)
+      return formattedUser
+    } catch (error: any) {
+      console.error("Login error:", error)
+      throw new Error(error.message || "Invalid email or password")
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  // Sign up with email
-  const signupWithEmail = async (name: string, email: string, password: string) => {
-    setIsLoading(true);
+  // Update the signupWithEmail function
+  const signupWithEmail = async (name: string, email: string, password: string): Promise<User> => {
+    setIsLoading(true)
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // In a real app, you'd make an API call here
-      // const response = await api.signup(name, email, password);
-      
-      // Mock successful signup
-      const userData: User = {
-        id: '123456',
-        email,
-        name,
-      };
-      
-      // Save user data to storage
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-    } catch (error) {
-      console.error('Signup error:', error);
-      throw new Error('Failed to create account');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      const { user: firebaseUser } = await auth().createUserWithEmailAndPassword(email, password)
 
-  // Sign in with Gmail
-  const signInWithGmail = async () => {
-    setIsLoading(true);
+      // Update profile with name
+      await firebaseUser.updateProfile({ displayName: name })
+
+      // Explicitly sign out after registration - user must manually sign in
+      await auth().signOut()
+
+      // Return user info even though we logged them out
+      const formattedUser = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || "",
+        name: name,
+        photoURL: firebaseUser.photoURL || undefined,
+      }
+
+      return formattedUser
+    } catch (error: any) {
+      console.error("Signup error:", error)
+      throw new Error(error.message || "Failed to create account")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const signupWithPhone = async (name: string, phone: string, password: string): Promise<User> => {
+    setIsLoading(true)
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Đăng ký tài khoản sử dụng @react-native-firebase/auth
+      const userCredential = await auth().createUserWithEmailAndPassword(`${phone}@phone.user`, password)
       
-      // In a real app, you'd integrate with Google Sign-In SDK
-      // const response = await GoogleSignin.signIn();
+      // Update profile with name
+      await userCredential.user.updateProfile({ displayName: name })
       
-      // Mock successful Gmail login
-      const userData: User = {
-        id: 'gmail123456',
-        email: 'user@gmail.com',
-        name: 'Gmail User',
-      };
+      // Đăng xuất ngay sau khi đăng ký thành công
+      await auth().signOut()
       
-      // Save user data to storage
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-    } catch (error) {
-      console.error('Gmail login error:', error);
-      throw new Error('Failed to sign in with Gmail');
+      // Trả về thành công
+      const formattedUser = {
+        id: userCredential.user.uid,
+        email: `${phone}@phone.user`,
+        name: name,
+        photoURL: userCredential.user.photoURL || undefined,
+      }
+      return formattedUser
+    } catch (error: any) {
+      console.error("Phone signup error:", error)
+      throw new Error(error.message || "Failed to create account")
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  // Logout
-  const logout = async () => {
-    setIsLoading(true);
+  const signInWithGmail = async (): Promise<User> => {
+    setIsLoading(true)
     try {
-      // Remove user data from storage
-      await AsyncStorage.removeItem('user');
-      setUser(null);
-    } catch (error) {
-      console.error('Logout error:', error);
-      throw new Error('Failed to logout');
+      await GoogleSignin.hasPlayServices()
+      const userInfo = await GoogleSignin.signIn()
+      const { idToken } = await GoogleSignin.getTokens() // ✅ Dùng getTokens để lấy idToken
+
+      if (!idToken) {
+        throw new Error("No ID token returned from Google")
+      }
+
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken)
+      const userCredential = await auth().signInWithCredential(googleCredential)
+      const formattedUser = formatUser(userCredential.user)
+      return formattedUser
+    } catch (error: any) {
+      console.error("Gmail login error:", error)
+      throw new Error(error.message || "Failed to sign in with Gmail")
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  const value = {
-    user,
-    isLoading,
-    login,
-    signupWithEmail,
-    signInWithGmail,
-    logout,
-  };
+  const resetPassword = async (phone: string): Promise<string> => {
+    try {
+      // First check if the phone number exists
+      const email = `${phone}@phone.user`
+      const methods = await auth().fetchSignInMethodsForEmail(email)
+      
+      if (methods.length === 0) {
+        throw new Error("Số điện thoại chưa được đăng ký")
+      }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+      // For development, use test verification code
+      if (__DEV__) {
+        // Store the phone number for verification
+        await AsyncStorage.setItem('reset_phone', phone)
+        // Return a fake verification ID
+        return 'test-verification-id'
+      }
+
+      // Format phone number to E.164 format for Firebase
+      const formattedPhone = phone.startsWith('+84') ? phone : `+84${phone.startsWith('0') ? phone.slice(1) : phone}`
+
+      // Send verification code via SMS
+      const confirmation = await auth().signInWithPhoneNumber(formattedPhone, true)
+      
+      if (!confirmation.verificationId) {
+        throw new Error("Không thể gửi mã xác thực")
+      }
+      
+      return confirmation.verificationId
+    } catch (error: any) {
+      console.error("Reset password error:", error)
+      if (error.message === "Số điện thoại chưa được đăng ký") {
+        throw error
+      }
+      throw new Error("Không thể gửi mã xác thực. Vui lòng thử lại sau.")
+    }
+  }
+
+  const verifyResetCode = async (phone: string, verificationId: string, newPassword: string): Promise<void> => {
+    try {
+      // For development, verify with test code
+      if (__DEV__) {
+        const storedPhone = await AsyncStorage.getItem('reset_phone')
+        if (storedPhone !== phone) {
+          throw new Error("Số điện thoại không khớp")
+        }
+        if (verificationId !== 'test-verification-id') {
+          throw new Error("Mã xác thực không hợp lệ")
+        }
+        // Update password directly in development
+        const email = `${phone}@phone.user`
+        const userCredential = await auth().signInWithEmailAndPassword(email, "temp-password")
+        if (userCredential.user) {
+          await userCredential.user.updatePassword(newPassword)
+          await auth().signOut()
+          await AsyncStorage.removeItem('reset_phone')
+        }
+        return
+      }
+
+      // Production verification logic
+      const formattedPhone = phone.startsWith('+84') ? phone : `+84${phone.startsWith('0') ? phone.slice(1) : phone}`
+      const credential = auth.PhoneAuthProvider.credential(verificationId, formattedPhone)
+      await auth().signInWithCredential(credential)
+      
+      // After verification success, update password
+      const email = `${phone}@phone.user`
+      const userCredential = await auth().signInWithEmailAndPassword(email, "temp-password")
+      
+      if (userCredential.user) {
+        await userCredential.user.updatePassword(newPassword)
+        await auth().signOut()
+      } else {
+        throw new Error("Không thể cập nhật mật khẩu")
+      }
+    } catch (error: any) {
+      console.error("Verify code error:", error)
+      throw new Error("Mã xác thực không hợp lệ hoặc đã hết hạn")
+    }
+  }
+
+  const logout = async (): Promise<void> => {
+    setIsLoading(true)
+    try {
+      await auth().signOut()
+
+      const currentUser = await GoogleSignin.getCurrentUser()
+      if (currentUser) {
+        await GoogleSignin.signOut()
+      }
+
+      await AsyncStorage.removeItem("user")
+      setUser(null)
+    } catch (error: any) {
+      console.error("Logout error:", error)
+      throw new Error(error.message || "Failed to logout")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        login,
+        signupWithEmail,
+        signupWithPhone,
+        signInWithGmail,
+        resetPassword,
+        verifyResetCode,
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
+}

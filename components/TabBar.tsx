@@ -1,68 +1,120 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+"use client"
 
-type TabBarProps = {
-  currentTab: string;
-  setCurrentTab: (tab: string) => void;
-};
+import type React from "react"
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
+import Icon from "react-native-vector-icons/MaterialIcons"
+import { useTheme } from "./context/ThemeContext"
+import { COLORS } from "../styles/theme"
 
-const TabBar = ({ currentTab, setCurrentTab }: TabBarProps) => {
+interface TabBarProps {
+  currentTab: string
+  setCurrentTab: (tab: string) => void
+}
+
+const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab }) => {
+  const { isDarkMode, colors } = useTheme()
+
   return (
-    <View style={styles.tabBar}>
-      <TouchableOpacity 
-        style={[styles.tabItem, currentTab === 'schedule' && styles.activeTab]} 
-        onPress={() => setCurrentTab('schedule')}
-      >
-        <Text style={styles.tabIcon}>📅</Text>
-        <Text style={styles.tabText}>Lịch</Text>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: isDarkMode ? colors.darkCard : colors.card,
+          borderTopColor: isDarkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
+        },
+      ]}
+    >
+      <TouchableOpacity style={styles.tab} onPress={() => setCurrentTab("schedule")} activeOpacity={0.7}>
+        <Icon
+          name="calendar-today"
+          size={24}
+          color={currentTab === "schedule" ? COLORS.primary : isDarkMode ? "#888888" : "#AAAAAA"}
+        />
+        <Text
+          style={[
+            styles.tabText,
+            {
+              color: currentTab === "schedule" ? COLORS.primary : isDarkMode ? "#888888" : "#AAAAAA",
+            },
+          ]}
+        >
+          Lịch
+        </Text>
       </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.tabItem, currentTab === 'suggestions' && styles.activeTab]} 
-        onPress={() => setCurrentTab('suggestions')}
-      >
-        <Text style={styles.tabIcon}>🧠</Text>
-        <Text style={styles.tabText}>Gợi ý</Text>
+
+      <TouchableOpacity style={styles.tab} onPress={() => setCurrentTab("suggestions")} activeOpacity={0.7}>
+        <Icon
+          name="lightbulb"
+          size={24}
+          color={currentTab === "suggestions" ? COLORS.primary : isDarkMode ? "#888888" : "#AAAAAA"}
+        />
+        <Text
+          style={[
+            styles.tabText,
+            {
+              color: currentTab === "suggestions" ? COLORS.primary : isDarkMode ? "#888888" : "#AAAAAA",
+            },
+          ]}
+        >
+          Quản lý
+        </Text>
       </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.tabItem, currentTab === 'analytics' && styles.activeTab]} 
-        onPress={() => setCurrentTab('analytics')}
-      >
-        <Text style={styles.tabIcon}>📊</Text>
-        <Text style={styles.tabText}>Phân tích</Text>
+
+      <TouchableOpacity style={styles.tab} onPress={() => setCurrentTab("challenges")} activeOpacity={0.7}>
+        <Icon
+          name="emoji-events"
+          size={24}
+          color={currentTab === "challenges" ? COLORS.primary : isDarkMode ? "#888888" : "#AAAAAA"}
+        />
+        <Text
+          style={[
+            styles.tabText,
+            {
+              color: currentTab === "challenges" ? COLORS.primary : isDarkMode ? "#888888" : "#AAAAAA",
+            },
+          ]}
+        >
+          Thử thách
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.tab} onPress={() => setCurrentTab("settings")} activeOpacity={0.7}>
+        <Icon
+          name="settings"
+          size={24}
+          color={currentTab === "settings" ? COLORS.primary : isDarkMode ? "#888888" : "#AAAAAA"}
+        />
+        <Text
+          style={[
+            styles.tabText,
+            {
+              color: currentTab === "settings" ? COLORS.primary : isDarkMode ? "#888888" : "#AAAAAA",
+            },
+          ]}
+        >
+          Cài đặt
+        </Text>
       </TouchableOpacity>
     </View>
-  );
-};
+  )
+}
 
 const styles = StyleSheet.create({
-  tabBar: {
+  container: {
     flexDirection: "row",
-    backgroundColor: "#fff",
+    height: 60,
     borderTopWidth: 1,
-    borderTopColor: "#F0F2F5",
-    paddingVertical: 8,
+    paddingBottom: 8,
   },
-  tabItem: {
+  tab: {
     flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 8,
-  },
-  activeTab: {
-    borderTopWidth: 3,
-    borderTopColor: "#7B66FF",
-    paddingTop: 5,
-  },
-  tabIcon: {
-    fontSize: 24,
-    marginBottom: 4,
   },
   tabText: {
     fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
-  }
-});
+    marginTop: 2,
+  },
+})
 
-export default TabBar;
+export default TabBar
