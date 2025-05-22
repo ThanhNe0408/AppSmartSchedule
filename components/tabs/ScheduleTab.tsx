@@ -115,6 +115,10 @@ const ScheduleTab: React.FC = () => {
   const [dayDetailVisible, setDayDetailVisible] = useState(false)
   const [selectedDayDetail, setSelectedDayDetail] = useState<CalendarDay | null>(null)
 
+  // Thêm state cho modal chi tiết lịch
+  const [showEventDetailModal, setShowEventDetailModal] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState<FirestoreEvent | null>(null)
+
   const colorOptions = ["#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#F44336", "#9E9E9E"]
 
   const weekdays = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]
@@ -782,6 +786,12 @@ const ScheduleTab: React.FC = () => {
     setDayDetailVisible(true)
   }
 
+  // Hàm mở modal chi tiết lịch
+  const openEventDetail = (event: FirestoreEvent) => {
+    setSelectedEvent(event)
+    setShowEventDetailModal(true)
+  }
+
   // Render day view
   const renderDayView = () => {
     // Find the selected day in calendarDays
@@ -836,13 +846,15 @@ const ScheduleTab: React.FC = () => {
         {filteredEvents.length > 0 ? (
           filteredEvents.map((event) => (
             <View key={event.id} style={styles.eventItemContainer}>
-              <EventItem
-                day={event.day}
-                month={event.month}
-                title={`${event.startTime} - ${event.endTime}`}
-                info={event.title}
-                indicatorColor={event.indicatorColor}
-              />
+              <TouchableOpacity onPress={() => openEventDetail(event)}>
+                <EventItem
+                  day={event.day}
+                  month={event.month}
+                  title={`${event.startTime} - ${event.endTime}`}
+                  info={event.title}
+                  indicatorColor={event.indicatorColor}
+                />
+              </TouchableOpacity>
               <View style={styles.actionButtons}>
                 <TouchableOpacity onPress={() => editEvent(event)} style={styles.editButton}>
                   <Text style={styles.buttonText}>✏️</Text>
@@ -1373,6 +1385,30 @@ const ScheduleTab: React.FC = () => {
           onDeleteEvent={confirmDelete}
         />
       )}
+
+      {/* Modal chi tiết lịch */}
+      <Modal visible={showEventDetailModal} transparent animationType="slide" onRequestClose={() => setShowEventDetailModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%' }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#4285F4', marginBottom: 12 }}>Chi tiết lịch</Text>
+            {selectedEvent && (
+              <>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8 }}>{selectedEvent.title}</Text>
+                <Text style={{ marginBottom: 4 }}>Ngày: {selectedEvent.date ? new Date(selectedEvent.date).toLocaleDateString('vi-VN') : ''}</Text>
+                <Text style={{ marginBottom: 4 }}>Thời gian: {selectedEvent.startTime} - {selectedEvent.endTime}</Text>
+                {selectedEvent.info ? <Text style={{ marginBottom: 4 }}>Mô tả: {selectedEvent.info}</Text> : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                  <Text>Màu: </Text>
+                  <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: selectedEvent.indicatorColor, borderWidth: 1, borderColor: '#ccc' }} />
+                </View>
+              </>
+            )}
+            <TouchableOpacity onPress={() => setShowEventDetailModal(false)} style={{ marginTop: 20, alignSelf: 'center', backgroundColor: '#4285F4', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 32 }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   )
 }

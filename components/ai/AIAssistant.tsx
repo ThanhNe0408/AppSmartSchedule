@@ -1,149 +1,260 @@
-import React from "react"
-import { useState } from "react"
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from "react-native"
-import Icon from "react-native-vector-icons/MaterialIcons"
-import Card from "../UI/Card"
-import CustomButton from "../UI/CustomButton"
-import { COLORS } from "../../styles/theme"
+import React, { useState, useEffect } from "react";
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TextInput, 
+  TouchableOpacity, 
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  Image
+} from "react-native";
+import { COLORS } from "../../styles/theme";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import firestore from '@react-native-firebase/firestore';
 
-// Create a new component for OpenRouter AI integration
+// Định nghĩa các kiểu dữ liệu
+interface ScheduleItem {
+  id: string;
+  title: string;
+  type: 'class' | 'study' | 'exam' | 'break';
+  startTime: string;
+  endTime: string;
+  dayOfWeek: number;
+  location?: string;
+  priority?: number;
+  completed?: boolean;
+  notes?: string;
+}
+
+interface StudySession {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  subject: string;
+  efficiency: number;
+  notes?: string;
+}
+
+interface UserData {
+  schedule: ScheduleItem[];
+  studySessions: StudySession[];
+  preferences: {
+    preferredStudyTime?: 'morning' | 'afternoon' | 'evening' | 'night';
+    breakDuration?: number;
+    studyGoalPerDay?: number;
+    focusLevel?: number;
+  };
+}
+
+const EMPTY_USER_DATA: UserData = {
+  schedule: [],
+  studySessions: [],
+  preferences: {}
+};
 
 const AIAssistant = () => {
-  const [prompt, setPrompt] = useState("")
-  const [response, setResponse] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [apiKey, setApiKey] = useState("")
-  const [isConfigured, setIsConfigured] = useState(false)
+  const [prompt, setPrompt] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [userData, setUserData] = useState<UserData>(EMPTY_USER_DATA);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [isFirstLaunch, setIsFirstLaunch] = useState(true);
+  const [chatHistory, setChatHistory] = useState<Array<{role: string, content: string}>>([
+    { role: 'assistant', content: 'Xin chào! Mình là Mimi 🐱, trợ lý học tập dễ thương của bạn. Hãy hỏi Mimi bất cứ điều gì về lịch học, quản lý thời gian hoặc thử thách nhé!' }
+  ]);
 
-  const renderSettingItem = (
-    icon: string,
-    title: string,
-    description?: string,
-    onPress?: () => void,
-    rightComponent?: React.ReactNode
-  ) => {
-    return (
-      <TouchableOpacity 
-        style={styles.settingItem} 
-        onPress={onPress}
-        disabled={!onPress}
-      >
-        <View style={[styles.settingIconContainer, { backgroundColor: COLORS.primary }]}>
-          <Icon name={icon} size={24} color="#FFFFFF" style={styles.settingIcon} />
-        </View>
-        <View style={styles.settingContent}>
-          <Text style={styles.settingTitle}>{title}</Text>
-          {description && <Text style={styles.settingDescription}>{description}</Text>}
-        </View>
-        <View style={styles.settingRight}>
-          {rightComponent || (
-            <Icon name="chevron-right" size={24} color={COLORS.border} />
-          )}
-        </View>
-      </TouchableOpacity>
-    )
-  }
+  // Định nghĩa các biến cần thiết
+  const dayNames = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+  const busyHoursByDay = [0, 0, 0, 0, 0, 0, 0];
 
-  const saveAPIKey = () => {
-    if (!apiKey.trim()) {
-      Alert.alert("Lỗi", "Vui lòng nhập API key")
-      return
+  // Lấy dữ liệu từ Firestore
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const userId = await AsyncStorage.getItem('userId') || 'demo_user';
+        // Lấy lịch học từ collection 'events'
+        const eventsSnap = await firestore()
+          .collection('events')
+          .where('userId', '==', userId)
+          .get();
+
+        const schedule: ScheduleItem[] = eventsSnap.docs.map(doc => {
+          const d = doc.data();
+          // Tính dayOfWeek từ date (nếu có)
+          let dayOfWeek = 0;
+          if (d.date) {
+            let dateObj;
+            if (typeof d.date === 'string') {
+              const [year, month, day] = d.date.split('-').map(Number);
+              dateObj = new Date(year, month - 1, day);
+            } else if (d.date.toDate) {
+              dateObj = d.date.toDate();
+            } else {
+              dateObj = new Date(d.date);
+            }
+            dayOfWeek = dateObj.getDay();
+          } else if (d.day) {
+            dayOfWeek = Number(d.day);
+          }
+          return {
+            id: doc.id,
+            title: d.title,
+            type: d.id?.startsWith('class') ? 'class' : (d.id?.startsWith('exam') ? 'exam' : 'study'),
+            startTime: d.startTime,
+            endTime: d.endTime,
+            dayOfWeek,
+            location: d.info,
+            priority: 1,
+            notes: d.info,
+          };
+        });
+
+        // Lấy thử thách từ collection 'challenges' nếu muốn
+        const challengeSnap = await firestore()
+          .collection('challenges')
+          .where('userId', '==', userId)
+          .get();
+
+        const studySessions: StudySession[] = challengeSnap.docs.map(doc => {
+          const d = doc.data();
+          return {
+            id: doc.id,
+            date: d.date,
+            startTime: d.startTime,
+            endTime: d.endTime,
+            duration: d.duration,
+            subject: d.subject,
+            efficiency: d.efficiency,
+            notes: d.notes,
+          };
+        });
+
+        setUserData({ schedule, studySessions, preferences: {} });
+        setIsFirstLaunch(false);
+      } catch (error) {
+        console.error("Error loading user data from Firebase:", error);
+        setUserData(EMPTY_USER_DATA);
+      }
+    };
+    loadUserData();
+  }, []);
+
+  // Hàm gọi API OpenRouter
+  const callOpenRouterAPI = async (messages: Array<{role: string, content: string}>) => {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer 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',
+          'HTTP-Referer': 'https://github.com/yourusername/SmartSchedule',
+          'X-Title': 'SmartSchedule',
+        },
+        body: JSON.stringify({
+          model: 'deepseek/deepseek-chat-v3-0324:free',
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error('Error calling OpenRouter API:', error);
+      throw error;
     }
+  };
 
-    // In a real app, you would securely store this key
-    setIsConfigured(true)
-    Alert.alert("Thành công", "Đã lưu API key thành công")
-  }
-
+  // Hàm gửi câu hỏi và nhận phản hồi AI
   const generateResponse = async () => {
     if (!prompt.trim()) {
-      Alert.alert("Lỗi", "Vui lòng nhập câu hỏi hoặc yêu cầu")
-      return
+      Alert.alert("Lỗi", "Vui lòng nhập câu hỏi hoặc yêu cầu");
+      return;
     }
-
-    if (!isConfigured) {
-      Alert.alert("Lỗi", "Vui lòng cấu hình API key trước")
-      return
-    }
-
-    setIsLoading(true)
-    setResponse("")
-
+    setIsLoading(true);
     try {
-      // In a real app, you would make an actual API call to OpenRouter
-      // This is a simulation for demonstration purposes
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Thêm câu hỏi vào chatHistory
+      const userMessage = { role: 'user', content: prompt };
+      const updatedHistory = [...chatHistory, userMessage];
+      setChatHistory(updatedHistory);
+      setPrompt("");
 
-      // Simulate different responses based on the prompt
-      let simulatedResponse = ""
-
-      if (prompt.toLowerCase().includes("lịch") || prompt.toLowerCase().includes("schedule")) {
-        simulatedResponse =
-          "Dựa trên lịch học của bạn, tôi đề xuất bạn nên dành thêm thời gian cho môn Lập trình Web vào thứ 4 và thứ 6. Bạn có thể tối ưu thời gian bằng cách kết hợp các buổi học cùng ngày để giảm thời gian di chuyển."
-      } else if (prompt.toLowerCase().includes("học") || prompt.toLowerCase().includes("study")) {
-        simulatedResponse =
-          "Phân tích thói quen học tập của bạn cho thấy bạn hiệu quả nhất vào buổi sáng (8-11h). Tôi khuyên bạn nên sắp xếp các môn học khó vào khung giờ này và dành buổi chiều cho các hoạt động thực hành hoặc làm bài tập."
-      } else if (prompt.toLowerCase().includes("thời gian") || prompt.toLowerCase().includes("time")) {
-        simulatedResponse =
-          "Để quản lý thời gian hiệu quả, bạn nên áp dụng phương pháp Pomodoro: học tập tập trung trong 25 phút, sau đó nghỉ ngơi 5 phút. Lặp lại 4 lần rồi nghỉ dài 15-30 phút. Phương pháp này giúp duy trì sự tập trung và tránh kiệt sức."
-      } else {
-        simulatedResponse =
-          "Dựa trên dữ liệu học tập của bạn, tôi nhận thấy bạn đang tiến bộ tốt. Để cải thiện hơn nữa, hãy thử phân chia các nhiệm vụ lớn thành các phần nhỏ hơn và thiết lập thời hạn cụ thể cho mỗi phần. Điều này sẽ giúp bạn theo dõi tiến độ dễ dàng hơn và giảm cảm giác quá tải."
+      // Tạo context từ dữ liệu người dùng
+      let context = "";
+      if (userData.schedule.length > 0) {
+        context = `Dựa trên lịch học hiện tại của người dùng:\n`;
+        userData.schedule.forEach(item => {
+          context += `- ${dayNames[item.dayOfWeek]}: ${item.title} (${item.startTime} - ${item.endTime})\n`;
+        });
       }
-
-      setResponse(simulatedResponse)
+      if (userData.studySessions.length > 0) {
+        context += `\nCác thử thách/challenge gần đây:\n`;
+        userData.studySessions.forEach(item => {
+          context += `- ${item.date}: ${item.subject} (${item.startTime} - ${item.endTime}), hiệu suất: ${item.efficiency}/10\n`;
+        });
+      }
+      const systemMessage = {
+        role: 'system',
+        content: `Bạn là Mimi, một trợ lý AI mèo dễ thương chuyên giúp đỡ học sinh/sinh viên trong việc quản lý thời gian, tối ưu lịch học và thử thách học tập. ${context} Hãy trả lời câu hỏi của người dùng một cách hữu ích, thân thiện và dễ thương.`
+      };
+      const messages = [systemMessage, ...updatedHistory];
+      const aiResponse = await callOpenRouterAPI(messages);
+      setChatHistory([...updatedHistory, { role: 'assistant', content: aiResponse }]);
     } catch (error) {
-      console.error("Error generating response:", error)
-      Alert.alert("Lỗi", "Không thể tạo phản hồi. Vui lòng thử lại sau.")
+      Alert.alert("Lỗi", "Không thể tạo phản hồi. Vui lòng thử lại sau.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
+    <SafeAreaView style={styles.safeArea}>
     <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Mimi - Trợ lý học tập dễ thương 🐱</Text>
       <Text style={styles.description}>
-        Sử dụng sức mạnh của OpenRouter AI với mô hình Phi-4-reasoning-plus để nhận phân tích và gợi ý cá nhân hóa cho
-        lịch trình học tập của bạn.
+            Trò chuyện với Mimi để tối ưu lịch học, quản lý thời gian, hỏi đáp mọi vấn đề liên quan đến học tập và thử thách!
       </Text>
+        </View>
 
-      {!isConfigured && (
-        <View style={styles.settingsGroup}>
-          {renderSettingItem(
-            "key",
-            "Cấu hình API Key",
-            "Nhập API key của bạn từ OpenRouter để sử dụng mô hình AI",
-            undefined,
-            <View style={styles.configInput}>
-              <TextInput
-                style={styles.apiKeyInput}
-                placeholder="Nhập API key (sk-or-v1-...)"
-                value={apiKey}
-                onChangeText={setApiKey}
-                secureTextEntry
-              />
-              <CustomButton 
-                title="Lưu" 
-                onPress={saveAPIKey} 
-                style={styles.saveButton} 
-              />
+        {/* Box chat */}
+        <View style={styles.chatBox}>
+          {chatHistory.map((msg, idx) => (
+            <View key={idx} style={msg.role === 'user' ? styles.userMsg : styles.aiMsg}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                {msg.role === 'assistant' && (
+                  <Image source={require('../../assets/cat.png')} style={{ width: 24, height: 24, marginRight: 6 }} />
+                )}
+                <Text style={styles.msgRole}>{msg.role === 'assistant' ? 'Mimi:' : 'Bạn:'}</Text>
+              </View>
+              <Text style={styles.msgText}>
+                {typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}
+              </Text>
+            </View>
+          ))}
+          {isLoading && (
+            <View style={styles.aiMsg}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                <Image source={require('../../assets/cat.png')} style={{ width: 24, height: 24, marginRight: 6 }} />
+                <Text style={styles.msgRole}>Mimi:</Text>
+              </View>
+              <ActivityIndicator size="small" color="#4CAF50" />
             </View>
           )}
         </View>
-      )}
 
-      {isConfigured && (
-        <>
-          <View style={styles.settingsGroup}>
-            {renderSettingItem(
-              "chat",
-              "Hỏi trợ lý AI",
-              "Nhập câu hỏi hoặc yêu cầu của bạn",
-              undefined,
+        {/* Nhập câu hỏi */}
               <View style={styles.inputContainer}>
                 <TextInput
-                  style={styles.promptInput}
-                  placeholder="Nhập câu hỏi..."
+            style={styles.input}
+            placeholder="Nhập câu hỏi cho Mimi..."
                   value={prompt}
                   onChangeText={setPrompt}
                   multiline
@@ -153,179 +264,155 @@ const AIAssistant = () => {
                   onPress={generateResponse}
                   disabled={!prompt.trim() || isLoading}
                 >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
                     <Text style={styles.sendButtonText}>Gửi</Text>
-                  )}
                 </TouchableOpacity>
-              </View>
-            )}
           </View>
 
-          <View style={styles.settingsGroup}>
-            <Text style={styles.groupTitle}>Gợi ý câu hỏi</Text>
-            {renderSettingItem(
-              "schedule",
-              "Tối ưu lịch học",
-              "Làm thế nào để tối ưu lịch học của tôi?",
-              () => setPrompt("Làm thế nào để tối ưu lịch học của tôi?")
-            )}
-            {renderSettingItem(
-              "timer",
-              "Quản lý thời gian",
-              "Gợi ý cách quản lý thời gian hiệu quả",
-              () => setPrompt("Gợi ý cách quản lý thời gian hiệu quả")
-            )}
-            {renderSettingItem(
-              "trending-up",
-              "Phân tích học tập",
-              "Phân tích thói quen học tập của tôi",
-              () => setPrompt("Phân tích thói quen học tập của tôi")
-            )}
-            {renderSettingItem(
-              "balance",
-              "Cân bằng cuộc sống",
-              "Làm sao để cân bằng giữa học tập và giải trí?",
-              () => setPrompt("Làm sao để cân bằng giữa học tập và giải trí?")
-            )}
-          </View>
-
-          {response && (
-            <View style={styles.settingsGroup}>
-              <Text style={styles.groupTitle}>Phản hồi</Text>
-              <View style={styles.responseContent}>
-                <Text style={styles.responseText}>{response}</Text>
-              </View>
+        {/* Gợi ý câu hỏi */}
+        <View style={styles.suggestionsContainer}>
+          <Text style={styles.suggestionsTitle}>Gợi ý cho Mimi</Text>
+          <TouchableOpacity style={styles.suggestionItem} onPress={() => setPrompt("Làm thế nào để tối ưu lịch học của mình?")}>
+            <Text style={styles.suggestionIcon}>��</Text>
+            <Text style={styles.suggestionText}>Tối ưu lịch học</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.suggestionItem} onPress={() => setPrompt("Gợi ý cách quản lý thời gian hiệu quả")}> 
+            <Text style={styles.suggestionIcon}>⏰</Text>
+            <Text style={styles.suggestionText}>Quản lý thời gian</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.suggestionItem} onPress={() => setPrompt("Làm sao để cân bằng giữa học tập và giải trí?")}>
+            <Text style={styles.suggestionIcon}>⚖️</Text>
+            <Text style={styles.suggestionText}>Cân bằng học tập và giải trí</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.suggestionItem} onPress={() => setPrompt("Đề xuất thử thách học tập hiệu quả")}> 
+            <Text style={styles.suggestionIcon}>🎯</Text>
+            <Text style={styles.suggestionText}>Thử thách học tập</Text>
+          </TouchableOpacity>
             </View>
-          )}
-        </>
-      )}
     </ScrollView>
-  )
-}
+    </SafeAreaView>
+  );
+};
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#FFFFFF",
+  },
+  header: {
+    padding: 16,
+    marginBottom: 8,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#333333",
+    marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    color: COLORS.textLight,
-    marginHorizontal: 16,
-    marginVertical: 16,
+    color: "#666666",
     lineHeight: 20,
   },
-  groupTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.text,
+  inputContainer: {
     marginHorizontal: 16,
     marginVertical: 8,
   },
-  settingsGroup: {
-    marginBottom: 20,
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginHorizontal: 16,
-    backgroundColor: COLORS.white,
-  },
-  settingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  settingIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  settingIcon: {},
-  settingContent: {
-    flex: 1,
-    marginRight: 16,
-  },
-  settingTitle: {
-    fontSize: 16,
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  settingDescription: {
-    fontSize: 14,
-    color: COLORS.textLight,
-  },
-  settingRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  configInput: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  apiKeyInput: {
-    height: 40,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    backgroundColor: COLORS.white,
-    color: COLORS.text,
-  },
-  saveButton: {
-    backgroundColor: COLORS.primary,
-  },
-  inputContainer: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  promptInput: {
+  input: {
     minHeight: 80,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#DDDDDD",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 8,
-    backgroundColor: COLORS.white,
-    color: COLORS.text,
+    backgroundColor: "#FFFFFF",
     textAlignVertical: "top",
   },
   sendButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 8,
+    backgroundColor: "#4CAF50",
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
   },
   disabledButton: {
-    backgroundColor: COLORS.textLight,
+    opacity: 0.7,
   },
   sendButtonText: {
-    color: COLORS.white,
+    color: "#FFFFFF",
     fontWeight: "600",
   },
-  responseContent: {
+  suggestionsContainer: {
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 12,
     padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
-    backgroundColor: COLORS.background,
-    margin: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  suggestionsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333333",
+    marginBottom: 16,
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEEEEE",
+  },
+  suggestionIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  suggestionText: {
+    fontSize: 14,
+    color: "#666666",
+  },
+  chatBox: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    padding: 8,
+    backgroundColor: '#F5F5F5',
     borderRadius: 8,
+    minHeight: 120,
   },
-  responseText: {
-    fontSize: 15,
-    color: COLORS.text,
-    lineHeight: 22,
+  userMsg: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#DCF8C6',
+    borderRadius: 8,
+    marginVertical: 4,
+    padding: 8,
+    maxWidth: '80%',
   },
-})
+  aiMsg: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    marginVertical: 4,
+    padding: 8,
+    maxWidth: '80%',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  msgRole: {
+    fontWeight: 'bold',
+    marginBottom: 2,
+    color: '#4CAF50',
+  },
+  msgText: {
+    fontSize: 14,
+    color: '#333',
+  },
+});
 
-export default AIAssistant
+export default AIAssistant;

@@ -12,6 +12,7 @@ import {
   Alert,
   FlatList,
   ActivityIndicator,
+  Platform,
 } from "react-native"
 import Icon from "react-native-vector-icons/MaterialIcons"
 import { useAuth } from "../context/AuthContext"
@@ -22,6 +23,8 @@ import CustomButton from "../UI/CustomButton"
 import { LineChart } from "react-native-chart-kit"
 import { Dimensions } from "react-native"
 import firestore from "@react-native-firebase/firestore"
+import DateTimePicker from '@react-native-community/datetimepicker'
+import notifee, { TriggerType, AndroidImportance, AndroidCategory, AndroidVisibility } from '@notifee/react-native'
 
 // Challenge types
 type ChallengeType = "habit" | "task"
@@ -88,6 +91,10 @@ const ChallengesTab = () => {
     categoryId: "",
   })
   const [refreshing, setRefreshing] = useState(false)
+  const [challengeDate, setChallengeDate] = useState<Date | null>(null)
+  const [challengeTime, setChallengeTime] = useState<Date | null>(null)
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showTimePicker, setShowTimePicker] = useState(false)
 
   // Predefined categories with tasks
   // Predefined categories with tasks
@@ -569,23 +576,21 @@ const predefinedCategories: Category[] = [
       Alert.alert("Lỗi", "Bạn cần đăng nhập để tạo thử thách")
       return
     }
-
     if (!newChallenge.name.trim()) {
       Alert.alert("Lỗi", "Vui lòng nhập tên thử thách")
       return
     }
-
     try {
       setIsLoading(true)
-
-      const startDate = new Date()
+      const startDate = challengeDate ? new Date(challengeDate) : new Date()
+      if (challengeTime) {
+        startDate.setHours(challengeTime.getHours(), challengeTime.getMinutes(), 0, 0)
+      }
       let endDate = undefined
-
       if (newChallenge.type === "task") {
-        endDate = new Date()
+        endDate = new Date(startDate)
         endDate.setDate(endDate.getDate() + 7)
       }
-
       const challengeData = {
         ...newChallenge,
         startDate,
@@ -594,15 +599,12 @@ const predefinedCategories: Category[] = [
         ratings: [],
         userId: user.id,
       }
-
       const docRef = await firestore().collection("challenges").add(challengeData)
-
       const newChallengeObj: Challenge = {
         id: docRef.id,
         ...challengeData,
         ratings: [],
       }
-
       setChallenges([newChallengeObj, ...challenges])
       setNewChallengeModalVisible(false)
       setNewChallenge({
@@ -614,7 +616,57 @@ const predefinedCategories: Category[] = [
         reminder: true,
         categoryId: "",
       })
-
+      setChallengeDate(null)
+      setChallengeTime(null)
+      if (newChallenge.reminder && challengeDate && challengeTime) {
+        // Lên lịch notification kiểu báo thức
+        const scheduledDate = new Date(challengeDate)
+        scheduledDate.setHours(challengeTime.getHours(), challengeTime.getMinutes(), 0, 0)
+        const soundId = 'default' // hoặc lấy từ cài đặt nếu muốn
+        let channelId = soundId || 'alarm';
+        if (Platform.OS === "android") {
+          channelId = await notifee.createChannel({
+            id: soundId || "alarm",
+            name: "Alarm Channel",
+            sound: soundId,
+            vibration: true,
+            importance: AndroidImportance.HIGH,
+          });
+        }
+        const trigger = {
+          type: TriggerType.TIMESTAMP as const,
+          timestamp: scheduledDate.getTime(),
+        }
+        await notifee.createTriggerNotification(
+          {
+            title: `Nhắc nhở thử thách: ${newChallenge.name}`,
+            body: `Đã đến giờ thực hiện thử thách!` ,
+            android: {
+              channelId: channelId,
+              importance: AndroidImportance.HIGH,
+              sound: soundId,
+              vibrationPattern: [500, 1000, 500, 1000],
+              smallIcon: "ic_notification",
+              pressAction: { id: "stop_alarm" },
+              category: AndroidCategory.ALARM,
+              visibility: AndroidVisibility.PUBLIC,
+              autoCancel: false,
+              ongoing: true,
+              fullScreenAction: { id: 'stop_alarm' },
+            },
+            ios: {
+              sound: soundId,
+              foregroundPresentationOptions: {
+                badge: true,
+                sound: true,
+                banner: true,
+                list: true,
+              },
+            },
+          },
+          trigger,
+        )
+      }
       Alert.alert("Thành công", "Đã tạo thử thách mới!")
     } catch (error) {
       console.error("Error creating challenge:", error)
@@ -1201,6 +1253,48 @@ const predefinedCategories: Category[] = [
                     />
                   </TouchableOpacity>
                 </View>
+              </View>
+
+              <View style={styles.formSection}>
+                <Text style={[styles.sectionTitle, { color: isDarkMode ? colors.darkText : colors.text }]}>Chọn ngày</Text>
+                <TouchableOpacity style={styles.dateTimeButton} onPress={() => setShowDatePicker(true)}>
+                  <Icon name="calendar-today" size={24} color={COLORS.primary} />
+                  <Text style={styles.dateTimeText}>
+                    {challengeDate ? challengeDate.toLocaleDateString() : 'Chọn ngày'}
+                  </Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={challengeDate || new Date()}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false)
+                      if (selectedDate) setChallengeDate(selectedDate)
+                    }}
+                    minimumDate={new Date()}
+                  />
+                )}
+              </View>
+              <View style={styles.formSection}>
+                <Text style={[styles.sectionTitle, { color: isDarkMode ? colors.darkText : colors.text }]}>Chọn giờ</Text>
+                <TouchableOpacity style={styles.dateTimeButton} onPress={() => setShowTimePicker(true)}>
+                  <Icon name="access-time" size={24} color={COLORS.primary} />
+                  <Text style={styles.dateTimeText}>
+                    {challengeTime ? challengeTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Chọn giờ'}
+                  </Text>
+                </TouchableOpacity>
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={challengeTime || new Date()}
+                    mode="time"
+                    display="default"
+                    onChange={(event, selectedTime) => {
+                      setShowTimePicker(false)
+                      if (selectedTime) setChallengeTime(selectedTime)
+                    }}
+                  />
+                )}
               </View>
 
               <CustomButton
@@ -2004,6 +2098,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 16,
     lineHeight: 20,
+  },
+  dateTimeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#DDDDDD",
+    borderRadius: 12,
+  },
+  dateTimeText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "500",
   },
 })
 

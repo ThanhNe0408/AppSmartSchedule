@@ -6,6 +6,7 @@ import TimeEstimation from "../ai/TimeEstimation"
 import VoiceReminders from "../reminders/VoiceReminders"
 import AIAssistant from "../ai/AIAssistant"
 import ImageScheduleRecognition from "../recognition/ImageScheduleRecognition"
+import NotificationManager from "../notification/NotificationManager"
 import { useTheme } from "../context/ThemeContext"
 import { COLORS } from "../../styles/theme"
 
@@ -19,8 +20,8 @@ const SuggestionsTab = () => {
         return <ImageScheduleRecognition />
       case "timeEstimation":
         return <TimeEstimation />
-      case "voiceReminders":
-        return <VoiceReminders />
+      case "notifications":
+        return <NotificationManager />
       case "aiAssistant":
         return <AIAssistant />
       default:
@@ -63,15 +64,15 @@ const SuggestionsTab = () => {
           <TouchableOpacity
             style={[
               styles.featureButton,
-              activeFeature === "voiceReminders" && [
+              activeFeature === "notifications" && [
                 styles.activeFeature,
-                { backgroundColor: isDarkMode ? colors.dark.background : colors.white }
-              ]
+                { backgroundColor: isDarkMode ? colors.dark.background : colors.white },
+              ],
             ]}
-            onPress={() => setActiveFeature("voiceReminders")}
+            onPress={() => setActiveFeature("notifications")}
           >
             <Text style={styles.featureIcon}>🔔</Text>
-            <Text style={[styles.featureText, { color: isDarkMode ? colors.darkText : colors.text }]}>Nhắc nhở</Text>
+            <Text style={[styles.featureText, { color: isDarkMode ? colors.darkText : colors.text }]}>Thông báo</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
